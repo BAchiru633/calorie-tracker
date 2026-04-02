@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import hashlib
 import datetime
+import time # <--- NEW: Added time library
 import extra_streamlit_components as stx
 from streamlit_gsheets import GSheetsConnection
 
@@ -100,13 +101,16 @@ if not st.session_state.logged_in:
             if login_user in users:
                 if str(users[login_user]['password']) == hash_password(login_pass):
                     
-                    # DROP A COOKIE THAT LASTS FOR 30 DAYS!
+                    # DROP A COOKIE THAT LASTS FOR 30 DAYS
                     cookie_manager.set("auth_token", login_user, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
                     
                     st.session_state.logged_in = True
                     st.session_state.username = login_user
                     st.session_state.user_profile = users[login_user]
-                    st.success("Logged in successfully!")
+                    
+                    # THE FIX: Give the browser 2 seconds to save the cookie before refreshing
+                    st.success("Authenticating and saving secure login... Please wait.")
+                    time.sleep(2) 
                     st.rerun()
                 else:
                     st.error("Incorrect password.")
@@ -195,6 +199,10 @@ else:
             # SHRED THE COOKIE ON LOGOUT
             cookie_manager.delete("auth_token")
             st.session_state.clear() 
+            
+            # THE FIX: Give the browser 2 seconds to delete the cookie before refreshing
+            st.success("Logging out securely... Please wait.")
+            time.sleep(2)
             st.rerun()
 
     # ==========================================
