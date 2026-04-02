@@ -68,7 +68,8 @@ st.header("🍽️ Log a Meal")
 col1, col2, col3 = st.columns([2, 1, 1])
 
 with col1:
-    selected_dish = st.selectbox("Search for a dish:", df_food['Dish'].sort_values())
+    # FIXED: Changed df_food to df
+    selected_dish = st.selectbox("Search for a dish:", df['Dish'].sort_values())
     
 with col2:
     grams_eaten = st.number_input("Amount (grams):", min_value=10, max_value=1000, value=100, step=10)
@@ -77,9 +78,11 @@ with col3:
     st.write("") # Spacing alignment
     st.write("")
     if st.button("➕ Log Food", use_container_width=True):
-        # Calculate precise calories
-        dish_stats = df_food[df_food['Dish'] == selected_dish].iloc[0]
-        calories_added = (dish_stats['Calories (kcal per 100g)'] / 100.0) * grams_eaten
+        # FIXED: Changed df_food to df
+        dish_stats = df[df['Dish'] == selected_dish].iloc[0]
+        
+        # FIXED: Matched the column name to what load_data() guarantees
+        calories_added = (dish_stats['Calories_per_100g'] / 100.0) * grams_eaten
         
         # Save to memory
         st.session_state.food_log.append({
