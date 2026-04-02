@@ -8,6 +8,7 @@ import hashlib
 # --- PAGE SETUP ---
 # This MUST be the first Streamlit command
 st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout="centered")
+st.error("🚨 THIS IS THE NEW VERSION 🚨")
 
 # --- AUTHENTICATION FUNCTIONS ---
 USER_DB = "users_db.json"
