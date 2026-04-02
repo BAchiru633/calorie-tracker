@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import hashlib
+import datetime
+import extra_streamlit_components as stx
 from streamlit_gsheets import GSheetsConnection
 
 # --- PAGE SETUP ---
@@ -13,74 +15,71 @@ st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout
 # PASTE YOUR GOOGLE SHEET URL HERE:
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gqjP15Pz1GUy_7005_qswSfpjFh41LZFlsDNXu9AYuQ/edit?usp=sharing"
 
-# Connect to Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
+
+# Initialize Cookie Manager for Persistent Logins
+cookie_manager = stx.CookieManager()
 
 def hash_password(password):
     return hashlib.sha256(password.encode()).hexdigest()
 
 def load_users():
-    """Reads the 'Users' tab from Google Sheets"""
     try:
-        # ttl=0 means it always fetches live data, bypassing cache
         df = conn.read(worksheet="Users", spreadsheet=SPREADSHEET_URL, ttl=0)
-        df = df.dropna(how="all") # Clean up empty rows
+        df = df.dropna(how="all") 
         if df.empty or 'username' not in df.columns: 
             return {}
-            
         df = df.dropna(subset=['username'])
-        # Convert DataFrame back to a dictionary format for the app to read
         return df.set_index('username').to_dict('index')
     except Exception as e:
         return {}
 
 def save_users(users_dict):
-    """Writes the updated users back to Google Sheets"""
-    # Convert dictionary back to a DataFrame
     df = pd.DataFrame.from_dict(users_dict, orient='index').reset_index()
     df.rename(columns={'index': 'username'}, inplace=True)
-    # Overwrite the Users tab with the new data
     conn.update(worksheet="Users", data=df, spreadsheet=SPREADSHEET_URL)
 
 def load_daily_log(username):
-    """Reads the 'Logs' tab and filters for the logged-in user"""
     try:
         df = conn.read(worksheet="Logs", spreadsheet=SPREADSHEET_URL, ttl=0).dropna(how="all")
         if df.empty or 'username' not in df.columns: 
             return []
-        # Filter for ONLY this user's logs
         user_logs = df[df['username'] == username].drop(columns=['username']).to_dict('records')
         return user_logs
     except:
         return []
 
 def save_daily_log(username, user_log_list):
-    """Updates the 'Logs' tab without deleting other users' data"""
     try:
         all_logs_df = conn.read(worksheet="Logs", spreadsheet=SPREADSHEET_URL, ttl=0).dropna(how="all")
         if not all_logs_df.empty and 'username' in all_logs_df.columns:
-            # Remove ONLY the current user's old logs (to replace them with the new updated list)
             all_logs_df = all_logs_df[all_logs_df['username'] != username]
         else:
             all_logs_df = pd.DataFrame(columns=['username', 'Dish', 'Amount (g)', 'Calories (kcal)'])
     except:
         all_logs_df = pd.DataFrame(columns=['username', 'Dish', 'Amount (g)', 'Calories (kcal)'])
 
-    # Append the user's new log list
     if len(user_log_list) > 0:
         new_logs_df = pd.DataFrame(user_log_list)
-        new_logs_df['username'] = username # Attach the user's name to these rows
+        new_logs_df['username'] = username 
         all_logs_df = pd.concat([all_logs_df, new_logs_df], ignore_index=True)
 
-    # Write the combined master list back to the sheet
     conn.update(worksheet="Logs", data=all_logs_df, spreadsheet=SPREADSHEET_URL)
-
 
 # --- INITIALIZE SESSION STATE ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'username' not in st.session_state:
     st.session_state.username = ""
+
+# --- AUTO-LOGIN VIA COOKIE (30 DAY PERSISTENCE) ---
+auth_cookie = cookie_manager.get(cookie="auth_token")
+if auth_cookie and not st.session_state.logged_in:
+    users = load_users()
+    if auth_cookie in users:
+        st.session_state.logged_in = True
+        st.session_state.username = auth_cookie
+        st.session_state.user_profile = users[auth_cookie]
 
 # ==========================================
 #         LOGIN & SIGN UP SCREEN
@@ -100,6 +99,10 @@ if not st.session_state.logged_in:
             users = load_users()
             if login_user in users:
                 if str(users[login_user]['password']) == hash_password(login_pass):
+                    
+                    # DROP A COOKIE THAT LASTS FOR 30 DAYS!
+                    cookie_manager.set("auth_token", login_user, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                    
                     st.session_state.logged_in = True
                     st.session_state.username = login_user
                     st.session_state.user_profile = users[login_user]
@@ -114,7 +117,6 @@ if not st.session_state.logged_in:
         st.write("Create a new profile!")
         new_user = st.text_input("Choose a Username", key="new_user")
         new_pass = st.text_input("Choose a Password", type="password", key="new_pass")
-        
         new_gender = st.radio("Gender", ["Male", "Female"], horizontal=True)
         
         col1, col2 = st.columns(2)
@@ -141,15 +143,14 @@ if not st.session_state.logged_in:
                     "goal_weight": new_goal,
                     "calorie_goal": 2000
                 }
-                save_users(users) # SAVES LIVE TO GOOGLE SHEETS!
+                save_users(users) 
                 st.success("Account created! You can now log in from the Login tab.")
 
 # ==========================================
 #               MAIN APP DASHBOARD
 # ==========================================
 else:
-    # --- 1. FULL FOOD DATABASE ---
-    @st.cache_data(ttl=86400) # Caches the food DB for 24 hours for speed!
+    @st.cache_data(ttl=86400) 
     def load_data():
         try:
             df = pd.read_csv('indian_food_db.csv')
@@ -179,7 +180,6 @@ else:
         save_users(users)
         st.session_state.user_profile['calorie_goal'] = st.session_state.goal_input
 
-    # Initialize user's personal log from Google Sheets
     if 'food_log' not in st.session_state:
         st.session_state.food_log = load_daily_log(st.session_state.username)
     if 'total_calories' not in st.session_state:
@@ -192,6 +192,8 @@ else:
     with colB:
         st.write("")
         if st.button("Logout", use_container_width=True):
+            # SHRED THE COOKIE ON LOGOUT
+            cookie_manager.delete("auth_token")
             st.session_state.clear() 
             st.rerun()
 
