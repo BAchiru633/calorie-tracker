@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 import hashlib
 import datetime
 import time
-import jwt # <--- NEW: Secure token library
+import jwt 
 import extra_streamlit_components as stx
 from streamlit_gsheets import GSheetsConnection
 
@@ -17,7 +17,6 @@ st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout
 # PASTE YOUR GOOGLE SHEET URL HERE:
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gqjP15Pz1GUy_7005_qswSfpjFh41LZFlsDNXu9AYuQ/edit?usp=sharing"
 
-# Grab the secret key for our wax seals (falls back to a default if you forget to add it to Secrets)
 JWT_SECRET = st.secrets.get("JWT_SECRET", "fallback-dev-secret-key-do-not-use-in-prod")
 
 conn = st.connection("gsheets", type=GSheetsConnection)
@@ -79,7 +78,6 @@ if 'username' not in st.session_state:
 auth_cookie = cookie_manager.get(cookie="auth_token")
 if auth_cookie and not st.session_state.logged_in:
     try:
-        # Check if the wax seal is unbroken and matches our server's secret password
         decoded_token = jwt.decode(auth_cookie, JWT_SECRET, algorithms=["HS256"])
         token_username = decoded_token.get("username")
         
@@ -89,10 +87,8 @@ if auth_cookie and not st.session_state.logged_in:
             st.session_state.username = token_username
             st.session_state.user_profile = users[token_username]
     except jwt.ExpiredSignatureError:
-        # Token is too old, force a new login
         cookie_manager.delete("auth_token")
     except jwt.InvalidTokenError:
-        # Someone tampered with the cookie! Reject it.
         cookie_manager.delete("auth_token")
 
 # ==========================================
@@ -113,17 +109,12 @@ if not st.session_state.logged_in:
             users = load_users()
             if login_user in users:
                 if str(users[login_user]['password']) == hash_password(login_pass):
-                    
-                    # --- NEW: Create a mathematically signed token ---
                     expiration_date = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
                     token_payload = {
                         "username": login_user,
                         "exp": expiration_date
                     }
-                    # Seal it with our secret password
                     secure_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
-                    
-                    # Give the sealed token to the browser
                     cookie_manager.set("auth_token", secure_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
                     
                     st.session_state.logged_in = True
@@ -166,7 +157,9 @@ if not st.session_state.logged_in:
                     "weight": new_weight,
                     "height": new_height,
                     "goal_weight": new_goal,
-                    "calorie_goal": 2000
+                    "calorie_goal": 2000,
+                    "current_streak": 0, # --- NEW: Start tracking streak ---
+                    "last_log_date": ""  # --- NEW: Blank starting date ---
                 }
                 save_users(users) 
                 st.success("Account created! You can now log in from the Login tab.")
@@ -210,10 +203,18 @@ else:
     if 'total_calories' not in st.session_state:
         st.session_state.total_calories = sum([item['Calories (kcal)'] for item in st.session_state.food_log])
 
-    # --- TOP BAR: WELCOME & LOGOUT ---
+    # --- TOP BAR: WELCOME, STREAK & LOGOUT ---
     colA, colB = st.columns([4, 1])
     with colA:
         st.title(f"Welcome, {st.session_state.username}! 👋")
+        
+        # --- NEW: DISPLAY THE STREAK ---
+        current_streak = int(st.session_state.user_profile.get('current_streak', 0))
+        if current_streak > 0:
+            st.markdown(f"🔥 You are on a **{current_streak}-Day** streak! Keep it up!")
+        else:
+            st.markdown("Log a meal today to start your 🔥 streak!")
+            
     with colB:
         st.write("")
         if st.button("Logout", use_container_width=True):
@@ -245,9 +246,9 @@ else:
         st.divider()
         st.header("🧮 Health Tools")
         
-        u_weight = st.session_state.user_profile.get('weight', 70)
-        u_height = st.session_state.user_profile.get('height', 170)
-        u_age = st.session_state.user_profile.get('age', 25)
+        u_weight = float(st.session_state.user_profile.get('weight', 70))
+        u_height = float(st.session_state.user_profile.get('height', 170))
+        u_age = int(st.session_state.user_profile.get('age', 25))
         u_gender = st.session_state.user_profile.get('gender', 'Male') 
         
         with st.expander("⚖️ BMI Calculator"):
@@ -346,23 +347,37 @@ else:
             "Calories (kcal)": calories_added
         })
         st.session_state.total_calories += calories_added
-        
         save_daily_log(st.session_state.username, st.session_state.food_log)
-        st.toast(f"🔥 Added {grams_eaten}g of {selected_dish}! (+{int(calories_added)} kcal)", icon="🔥")
-        st.rerun()
-
-    st.divider()
-    st.subheader("📝 Today's Log")
-
-    if len(st.session_state.food_log) > 0:
-        log_df = pd.DataFrame(st.session_state.food_log)
-        log_df['Calories (kcal)'] = log_df['Calories (kcal)'].apply(lambda x: round(x))
-        st.dataframe(log_df, use_container_width=True, hide_index=True)
         
-        if st.button("🔄 Reset Entire Day", use_container_width=True):
-            st.session_state.food_log = []
-            st.session_state.total_calories = 0.0
-            save_daily_log(st.session_state.username, st.session_state.food_log)
-            st.rerun()
-    else:
-        st.info("No food logged yet today. Time to eat!")
+        # --- NEW: STREAK CALCULATION ENGINE ---
+        today_date = datetime.date.today()
+        today_str = today_date.strftime("%Y-%m-%d")
+        
+        last_log_str = st.session_state.user_profile.get('last_log_date', "")
+        streak = int(st.session_state.user_profile.get('current_streak', 0))
+        streak_updated = False
+        
+        if not last_log_str:
+            # First time logging ever!
+            streak = 1
+            streak_updated = True
+        elif last_log_str != today_str:
+            try:
+                # Calculate how many days it has been
+                last_date = datetime.datetime.strptime(last_log_str, "%Y-%m-%d").date()
+                delta = (today_date - last_date).days
+                
+                if delta == 1:
+                    streak += 1 # Kept the streak alive!
+                elif delta > 1:
+                    streak = 1  # Streak broken, start over
+                streak_updated = True
+            except:
+                # Failsafe if the date text got messed up
+                streak = 1
+                streak_updated = True
+                
+        # If the streak changed, save it permanently to Google Sheets!
+        if streak_updated:
+            st.session_state.user_profile['last_log_date'] = today_str
+            st.session_state.user_profile['current_streak
