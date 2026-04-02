@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import os
+import json
 
 # --- PAGE SETUP ---
 st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout="centered")
@@ -40,59 +41,83 @@ def load_data():
 
 df, using_csv = load_data()
 
-# --- 2. PERMANENT MEMORY (SAVE / LOAD) ---
+# --- 2. PERMANENT MEMORY (LOGS & SETTINGS) ---
 LOG_FILE = "my_daily_log.csv"
+SETTINGS_FILE = "my_settings.json"
 
+# --- Log functions ---
 def load_daily_log():
-    """Loads the saved food log from the computer, if it exists."""
     if os.path.exists(LOG_FILE):
         return pd.read_csv(LOG_FILE).to_dict('records')
     return []
 
 def save_daily_log(log_list):
-    """Saves the current food log to the computer so it survives refreshes."""
     if len(log_list) > 0:
         pd.DataFrame(log_list).to_csv(LOG_FILE, index=False)
     else:
-        # If the log is empty (e.g., we hit reset), delete the file
         if os.path.exists(LOG_FILE):
             os.remove(LOG_FILE)
 
-# Initialize from the saved file instead of a blank list!
+# --- Settings functions ---
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        with open(SETTINGS_FILE, "r") as f:
+            return json.load(f)
+    return {"calorie_goal": 2500} # Default if no file exists
+
+def save_settings():
+    # This grabs the value directly from the session state key and saves it
+    settings = {"calorie_goal": st.session_state.goal_input}
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f)
+
+# Initialize states
 if 'food_log' not in st.session_state:
     st.session_state.food_log = load_daily_log()
 
 if 'total_calories' not in st.session_state:
-    # Recalculate total calories based on the saved log
     st.session_state.total_calories = sum([item['Calories (kcal)'] for item in st.session_state.food_log])
 
+if 'user_settings' not in st.session_state:
+    st.session_state.user_settings = load_settings()
 
 st.title("🍛 Complete Indian Calorie Tracker")
 
 # --- 3. SIDEBAR: GOAL SETTING ---
 with st.sidebar:
     st.header("🎯 Daily Goal")
-    calorie_goal = st.number_input("Set Calorie Goal", min_value=1000, max_value=5000, value=2500, step=100)
+    # We use the loaded setting as the starting 'value'
+    # The 'on_change' triggers the save_settings function the moment you change the number
+    st.number_input(
+        "Set Calorie Goal", 
+        min_value=1000, max_value=5000, 
+        value=st.session_state.user_settings['calorie_goal'], 
+        step=100,
+        key="goal_input",
+        on_change=save_settings
+    )
     st.info("💡 Adjust this goal based on your current fitness targets.")
+
+# Now we pull the live goal from the session state key for our math below
+current_goal = st.session_state.goal_input
 
 # --- 4. CIRCULAR PROGRESS METER (PLOTLY) ---
 st.subheader("📊 Today's Progress")
 
-# Determine color based on progress natively
-if st.session_state.total_calories > calorie_goal:
-    bar_color = "#FF4B4B" # Streamlit Native Red
-elif st.session_state.total_calories > (calorie_goal * 0.8):
-    bar_color = "#FFAA00" # Warning Orange
+if st.session_state.total_calories > current_goal:
+    bar_color = "#FF4B4B" 
+elif st.session_state.total_calories > (current_goal * 0.8):
+    bar_color = "#FFAA00" 
 else:
-    bar_color = "#00CC96" # Success Green
+    bar_color = "#00CC96" 
 
 fig = go.Figure(go.Indicator(
     mode = "gauge+number",
     value = st.session_state.total_calories,
     number = {'suffix': " kcal", 'font': {'size': 45}},
-    title = {'text': f"Goal: {calorie_goal} kcal", 'font': {'size': 20}},
+    title = {'text': f"Goal: {current_goal} kcal", 'font': {'size': 20}},
     gauge = {
-        'axis': {'range': [0, calorie_goal], 'tickwidth': 1},
+        'axis': {'range': [0, current_goal], 'tickwidth': 1},
         'bar': {'color': bar_color},
         'bgcolor': "rgba(0,0,0,0.1)",
         'borderwidth': 0,
@@ -124,10 +149,8 @@ if st.button("➕ Log Food", type="primary", use_container_width=True):
     })
     st.session_state.total_calories += calories_added
     
-    # NEW: Save to file instantly!
     save_daily_log(st.session_state.food_log)
     
-    # NATIVE STREAMLIT ANIMATION / NOTIFICATION
     st.toast(f"🔥 Added {grams_eaten}g of {selected_dish}! (+{int(calories_added)} kcal)", icon="🔥")
     st.rerun()
 
@@ -139,13 +162,11 @@ if len(st.session_state.food_log) > 0:
     log_df = pd.DataFrame(st.session_state.food_log)
     log_df['Calories (kcal)'] = log_df['Calories (kcal)'].apply(lambda x: round(x))
     
-    # Use native data editor for a cleaner look
     st.dataframe(log_df, use_container_width=True, hide_index=True)
     
     if st.button("🔄 Reset Entire Day", use_container_width=True):
         st.session_state.food_log = []
         st.session_state.total_calories = 0.0
-        # NEW: Delete the file so it actually resets!
         save_daily_log(st.session_state.food_log)
         st.rerun()
 else:
