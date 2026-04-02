@@ -6,15 +6,13 @@ st.set_page_config(page_title="Indian Calorie Tracker", layout="wide")
 # --- 1. LOAD EXTERNAL DATABASE ---
 @st.cache_data
 def load_data():
-    # This reads the massive list from the CSV file in the same folder
-    return pd.read_csv('indian_food_db.csv')
-
-# Safety check in case the CSV is missing
-try:
-    df = load_data()
-except FileNotFoundError:
-    st.error("Error: 'indian_food_db.csv' not found. Please ensure the file is saved in the exact same folder as app.py.")
-    st.stop()
+    # Read the CSV
+    df = pd.read_csv('indian_food_db.csv')
+    
+    # BULLETPROOF FIX: Strip any accidental spaces from the column names
+    df.columns = df.columns.str.strip()
+    
+    return df
 
 # --- 2. INITIALIZE MEMORY (SESSION STATE) ---
 if 'log' not in st.session_state: 
