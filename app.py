@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 # --- PAGE SETUP ---
-st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout="centered")
+st.set_page_config(page_title="Calorie Tracker", page_icon="🍛", layout="centered")
 
 # --- 1. FULL FOOD DATABASE (Per 100g) ---
 @st.cache_data
