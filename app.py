@@ -1,32 +1,80 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import os
-import json
 import hashlib
+from streamlit_gsheets import GSheetsConnection
 
 # --- PAGE SETUP ---
-# This MUST be the first Streamlit command
 st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout="centered")
 
-# --- AUTHENTICATION FUNCTIONS ---
-USER_DB = "users_db.json"
+# ==========================================
+#         DATABASE CONNECTION (GOOGLE SHEETS)
+# ==========================================
+# PASTE YOUR GOOGLE SHEET URL HERE:
+SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gqjP15Pz1GUy_7005_qswSfpjFh41LZFlsDNXu9AYuQ/edit?usp=sharing"
+
+# Connect to Google Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 def hash_password(password):
-    """Scrambles the password for basic security"""
     return hashlib.sha256(password.encode()).hexdigest()
 
 def load_users():
-    """Loads the user database from a JSON file"""
-    if os.path.exists(USER_DB):
-        with open(USER_DB, "r") as f:
-            return json.load(f)
-    return {}
+    """Reads the 'Users' tab from Google Sheets"""
+    try:
+        # ttl=0 means it always fetches live data, bypassing cache
+        df = conn.read(worksheet="Users", spreadsheet=SPREADSHEET_URL, ttl=0)
+        df = df.dropna(how="all") # Clean up empty rows
+        if df.empty or 'username' not in df.columns: 
+            return {}
+            
+        df = df.dropna(subset=['username'])
+        # Convert DataFrame back to a dictionary format for the app to read
+        return df.set_index('username').to_dict('index')
+    except Exception as e:
+        return {}
 
 def save_users(users_dict):
-    """Saves the user database to a JSON file"""
-    with open(USER_DB, "w") as f:
-        json.dump(users_dict, f)
+    """Writes the updated users back to Google Sheets"""
+    # Convert dictionary back to a DataFrame
+    df = pd.DataFrame.from_dict(users_dict, orient='index').reset_index()
+    df.rename(columns={'index': 'username'}, inplace=True)
+    # Overwrite the Users tab with the new data
+    conn.update(worksheet="Users", data=df, spreadsheet=SPREADSHEET_URL)
+
+def load_daily_log(username):
+    """Reads the 'Logs' tab and filters for the logged-in user"""
+    try:
+        df = conn.read(worksheet="Logs", spreadsheet=SPREADSHEET_URL, ttl=0).dropna(how="all")
+        if df.empty or 'username' not in df.columns: 
+            return []
+        # Filter for ONLY this user's logs
+        user_logs = df[df['username'] == username].drop(columns=['username']).to_dict('records')
+        return user_logs
+    except:
+        return []
+
+def save_daily_log(username, user_log_list):
+    """Updates the 'Logs' tab without deleting other users' data"""
+    try:
+        all_logs_df = conn.read(worksheet="Logs", spreadsheet=SPREADSHEET_URL, ttl=0).dropna(how="all")
+        if not all_logs_df.empty and 'username' in all_logs_df.columns:
+            # Remove ONLY the current user's old logs (to replace them with the new updated list)
+            all_logs_df = all_logs_df[all_logs_df['username'] != username]
+        else:
+            all_logs_df = pd.DataFrame(columns=['username', 'Dish', 'Amount (g)', 'Calories (kcal)'])
+    except:
+        all_logs_df = pd.DataFrame(columns=['username', 'Dish', 'Amount (g)', 'Calories (kcal)'])
+
+    # Append the user's new log list
+    if len(user_log_list) > 0:
+        new_logs_df = pd.DataFrame(user_log_list)
+        new_logs_df['username'] = username # Attach the user's name to these rows
+        all_logs_df = pd.concat([all_logs_df, new_logs_df], ignore_index=True)
+
+    # Write the combined master list back to the sheet
+    conn.update(worksheet="Logs", data=all_logs_df, spreadsheet=SPREADSHEET_URL)
+
 
 # --- INITIALIZE SESSION STATE ---
 if 'logged_in' not in st.session_state:
@@ -41,7 +89,6 @@ if not st.session_state.logged_in:
     st.title("🍛 Indian Calorie Tracker")
     st.subheader("Please log in to continue")
     
-    # Create tabs for Login and Sign Up
     tab_login, tab_signup = st.tabs(["Login", "Sign Up"])
     
     with tab_login:
@@ -52,7 +99,7 @@ if not st.session_state.logged_in:
         if st.button("Login", type="primary"):
             users = load_users()
             if login_user in users:
-                if users[login_user]['password'] == hash_password(login_pass):
+                if str(users[login_user]['password']) == hash_password(login_pass):
                     st.session_state.logged_in = True
                     st.session_state.username = login_user
                     st.session_state.user_profile = users[login_user]
@@ -68,7 +115,6 @@ if not st.session_state.logged_in:
         new_user = st.text_input("Choose a Username", key="new_user")
         new_pass = st.text_input("Choose a Password", type="password", key="new_pass")
         
-        # Gender is required for accurate BMR and Body Fat calculations
         new_gender = st.radio("Gender", ["Male", "Female"], horizontal=True)
         
         col1, col2 = st.columns(2)
@@ -86,7 +132,6 @@ if not st.session_state.logged_in:
             elif not new_user or not new_pass:
                 st.warning("Please fill out both username and password.")
             else:
-                # Save the new user to our JSON database
                 users[new_user] = {
                     "password": hash_password(new_pass),
                     "gender": new_gender,
@@ -94,9 +139,9 @@ if not st.session_state.logged_in:
                     "weight": new_weight,
                     "height": new_height,
                     "goal_weight": new_goal,
-                    "calorie_goal": 2000 # Default starting goal
+                    "calorie_goal": 2000
                 }
-                save_users(users)
+                save_users(users) # SAVES LIVE TO GOOGLE SHEETS!
                 st.success("Account created! You can now log in from the Login tab.")
 
 # ==========================================
@@ -104,26 +149,22 @@ if not st.session_state.logged_in:
 # ==========================================
 else:
     # --- 1. FULL FOOD DATABASE ---
-    @st.cache_data
+    @st.cache_data(ttl=86400) # Caches the food DB for 24 hours for speed!
     def load_data():
         try:
             df = pd.read_csv('indian_food_db.csv')
             df.columns = df.columns.str.strip()
-            # Standardize 'Dish' column
             if 'Dish' not in df.columns:
                 dish_col = [col for col in df.columns if any(keyword in col.lower() for keyword in ['dish', 'food', 'name', 'item'])]
                 df.rename(columns={dish_col[0] if dish_col else df.columns[0]: 'Dish'}, inplace=True)
-            # Standardize 'Calories' column
             if 'Calories_per_100g' not in df.columns:
                 cal_col = [col for col in df.columns if 'calorie' in col.lower() or 'kcal' in col.lower()]
                 if cal_col:
                     df.rename(columns={cal_col[0]: 'Calories_per_100g'}, inplace=True)
-            # Clean calories column to strictly numeric
             df['Calories_per_100g'] = df['Calories_per_100g'].astype(str).str.replace(r'[^\d.]', '', regex=True)
             df['Calories_per_100g'] = pd.to_numeric(df['Calories_per_100g'], errors='coerce').fillna(0)
             return df, True
         except Exception as e:
-            # Fallback data if CSV fails
             fallback_data = {
                 "Dish": ["Plain Idli", "Plain Dosa", "Chicken Biryani", "Dal Tadka", "Paneer Butter Masala", "Roti/Phulka"],
                 "Calories_per_100g": [130, 168, 180, 125, 350, 297]
@@ -132,30 +173,15 @@ else:
 
     df, using_csv = load_data()
 
-    # --- 2. PERMANENT MEMORY (User Specific) ---
-    LOG_FILE = f"{st.session_state.username}_log.csv"
-
-    def load_daily_log():
-        if os.path.exists(LOG_FILE):
-            return pd.read_csv(LOG_FILE).to_dict('records')
-        return []
-
-    def save_daily_log(log_list):
-        if len(log_list) > 0:
-            pd.DataFrame(log_list).to_csv(LOG_FILE, index=False)
-        else:
-            if os.path.exists(LOG_FILE):
-                os.remove(LOG_FILE)
-                
     def save_calorie_goal():
         users = load_users()
         users[st.session_state.username]['calorie_goal'] = st.session_state.goal_input
         save_users(users)
         st.session_state.user_profile['calorie_goal'] = st.session_state.goal_input
 
-    # Initialize user's personal log
+    # Initialize user's personal log from Google Sheets
     if 'food_log' not in st.session_state:
-        st.session_state.food_log = load_daily_log()
+        st.session_state.food_log = load_daily_log(st.session_state.username)
     if 'total_calories' not in st.session_state:
         st.session_state.total_calories = sum([item['Calories (kcal)'] for item in st.session_state.food_log])
 
@@ -191,27 +217,21 @@ else:
         st.divider()
         st.header("🧮 Health Tools")
         
-        # Grab user stats for calculators (with safe fallbacks)
         u_weight = st.session_state.user_profile.get('weight', 70)
         u_height = st.session_state.user_profile.get('height', 170)
         u_age = st.session_state.user_profile.get('age', 25)
         u_gender = st.session_state.user_profile.get('gender', 'Male') 
         
-        # TOOL 1: BMI CALCULATOR
         with st.expander("⚖️ BMI Calculator"):
             bmi = u_weight / ((u_height / 100) ** 2)
             st.metric("Your BMI", f"{bmi:.1f}")
-            
             if bmi < 18.5: st.warning("Classification: Underweight")
             elif 18.5 <= bmi < 24.9: st.success("Classification: Normal Weight")
             elif 25 <= bmi < 29.9: st.warning("Classification: Overweight")
             else: st.error("Classification: Obese")
 
-        # TOOL 2: CALORIE NEEDS (BMR/TDEE)
         with st.expander("🔥 Daily Calorie Needs"):
             activity_level = st.selectbox("Activity Level", ["Sedentary", "Lightly Active", "Moderately Active", "Very Active"])
-            
-            # Mifflin-St Jeor Equation
             if u_gender == "Male":
                 bmr = (10 * u_weight) + (6.25 * u_height) - (5 * u_age) + 5
             else:
@@ -222,21 +242,17 @@ else:
             
             st.write(f"**BMR (Resting):** {int(bmr)} kcal")
             st.metric("TDEE (Maintenance):", f"{int(tdee)} kcal")
-            
             st.info("To lose fat, eat ~500 kcal below maintenance. To gain muscle, eat ~300 kcal above.")
             
-            # One-click update for main goal
             if st.button("Set as my Daily Goal"):
                 st.session_state.user_profile['calorie_goal'] = int(tdee - 500)
                 st.session_state.goal_input = int(tdee - 500)
                 save_calorie_goal()
                 st.rerun()
 
-        # TOOL 3: FAT PERCENTAGE ESTIMATOR
         with st.expander("📉 Body Fat % Estimator"):
             gender_num = 1 if u_gender == "Male" else 0
             body_fat_pct = (1.20 * bmi) + (0.23 * u_age) - (10.8 * gender_num) - 5.4
-            
             st.metric("Estimated Body Fat", f"{body_fat_pct:.1f}%")
             
             if u_gender == "Male":
@@ -255,19 +271,16 @@ else:
     # ==========================================
     #               MAIN DASHBOARD
     # ==========================================
-    # Bulletproof fallback in case the goal_input hasn't initialized yet
     current_goal = st.session_state.get('goal_input', st.session_state.user_profile.get('calorie_goal', 2000))
 
-    # --- 4. CIRCULAR PROGRESS METER (PLOTLY) ---
     st.subheader("📊 Today's Progress")
 
-    # Dynamic coloring based on limit
     if st.session_state.total_calories > current_goal:
-        bar_color = "#FF4B4B" # Red
+        bar_color = "#FF4B4B" 
     elif st.session_state.total_calories > (current_goal * 0.8):
-        bar_color = "#FFAA00" # Orange
+        bar_color = "#FFAA00" 
     else:
-        bar_color = "#00CC96" # Green
+        bar_color = "#00CC96" 
 
     fig = go.Figure(go.Indicator(
         mode = "gauge+number",
@@ -287,7 +300,6 @@ else:
 
     st.divider()
 
-    # --- 5. FOOD LOGGER ---
     st.subheader("🍽️ Log a Meal")
     col1, col2 = st.columns([2, 1])
 
@@ -307,11 +319,10 @@ else:
         })
         st.session_state.total_calories += calories_added
         
-        save_daily_log(st.session_state.food_log)
+        save_daily_log(st.session_state.username, st.session_state.food_log)
         st.toast(f"🔥 Added {grams_eaten}g of {selected_dish}! (+{int(calories_added)} kcal)", icon="🔥")
         st.rerun()
 
-    # --- 6. LOG HISTORY & RESET ---
     st.divider()
     st.subheader("📝 Today's Log")
 
@@ -323,7 +334,7 @@ else:
         if st.button("🔄 Reset Entire Day", use_container_width=True):
             st.session_state.food_log = []
             st.session_state.total_calories = 0.0
-            save_daily_log(st.session_state.food_log)
+            save_daily_log(st.session_state.username, st.session_state.food_log)
             st.rerun()
     else:
         st.info("No food logged yet today. Time to eat!")
