@@ -380,4 +380,4 @@ else:
         # If the streak changed, save it permanently to Google Sheets!
         if streak_updated:
             st.session_state.user_profile['last_log_date'] = today_str
-            st.session_state.user_profile['current_streak
+            st.session_state.user_profile['current_streak'] = streak
