@@ -1,0 +1,293 @@
+csv_data = """Dish,Category,Calories_per_100g
+Plain Idli,Breakfast,130
+Rava Idli,Breakfast,155
+Oats Idli,Breakfast,140
+Thatte Idli,Breakfast,145
+Plain Dosa,Breakfast,168
+Masala Dosa,Breakfast,195
+Onion Dosa,Breakfast,180
+Rava Dosa,Breakfast,185
+Pesarattu (Moong Dal Dosa),Breakfast,170
+Upma Pesarattu,Breakfast,210
+Neer Dosa,Breakfast,120
+Set Dosa,Breakfast,160
+Medu Vada,Breakfast,280
+Batata Vada,Breakfast,260
+Maddur Vada,Breakfast,290
+Uggani (Puffed Rice Upma),Breakfast,150
+Borugula Upma,Breakfast,150
+Rava Upma,Breakfast,135
+Semiya Upma,Breakfast,145
+Wheat Rava Upma,Breakfast,140
+Poha (Atukulu),Breakfast,160
+Ven Pongal,Breakfast,185
+Sweet Pongal (Chakkara Pongali),Breakfast,220
+Puri (Fried),Breakfast,295
+Chole Bhature,Breakfast,320
+Aloo Paratha (with ghee),Breakfast,210
+Paneer Paratha,Breakfast,230
+Gobi Paratha,Breakfast,195
+Appam,Breakfast,120
+Idiyappam,Breakfast,130
+Puttu,Breakfast,150
+Kuzhi Paniyaram,Breakfast,175
+Plain White Rice (Cooked),Rice Items,130
+Brown Rice (Cooked),Rice Items,110
+Jeera Rice,Rice Items,140
+Ghee Rice,Rice Items,200
+Curd Rice (Daddojanam),Rice Items,110
+Lemon Rice (Chitranna),Rice Items,150
+Pulihora (Tamarind Rice),Rice Items,190
+Tomato Rice,Rice Items,160
+Coconut Rice,Rice Items,180
+Mango Rice,Rice Items,165
+Bisi Bele Bath,Rice Items,170
+Vangi Bath (Brinjal Rice),Rice Items,160
+Pudina Rice (Mint Rice),Rice Items,145
+Kothimeera Rice (Coriander),Rice Items,140
+Veg Fried Rice,Rice Items,160
+Egg Fried Rice,Rice Items,175
+Chicken Fried Rice,Rice Items,190
+Mushroom Fried Rice,Rice Items,155
+Paneer Fried Rice,Rice Items,180
+Veg Biryani,Rice Items,160
+Chicken Biryani (Hyderabadi),Rice Items,180
+Mutton Biryani,Rice Items,210
+Prawns Biryani,Rice Items,195
+Egg Biryani,Rice Items,170
+Fish Biryani,Rice Items,175
+Donne Biryani (Chicken),Rice Items,185
+Ambur Chicken Biryani,Rice Items,190
+Kuska (Plain Biryani),Rice Items,150
+Bagara Annam,Rice Items,160
+Peas Pulao,Rice Items,140
+Kashmiri Pulao,Rice Items,190
+Plain Toor Dal (Pappu),Dal & Rasam,105
+Tomato Pappu,Dal & Rasam,115
+Palakura Pappu (Spinach Dal),Dal & Rasam,110
+Dosakaya Pappu (Cucumber Dal),Dal & Rasam,105
+Gongura Pappu (Sorrel Dal),Dal & Rasam,120
+Thotakura Pappu (Amaranth Dal),Dal & Rasam,110
+Mango Dal (Mamidikaya Pappu),Dal & Rasam,115
+Beerakaya Pappu (Ridge Gourd Dal),Dal & Rasam,100
+Sorakaya Pappu (Bottle Gourd Dal),Dal & Rasam,95
+Mudda Pappu (Thick Dal),Dal & Rasam,130
+Dal Fry,Dal & Rasam,115
+Dal Tadka,Dal & Rasam,125
+Dal Makhani,Dal & Rasam,130
+Panchmel Dal,Dal & Rasam,120
+Chana Dal,Dal & Rasam,125
+Moong Dal (Yellow),Dal & Rasam,105
+Masoor Dal (Red),Dal & Rasam,110
+Veg Sambar,Dal & Rasam,75
+Radish Sambar,Dal & Rasam,70
+Drumstick Sambar,Dal & Rasam,75
+Onion Sambar,Dal & Rasam,80
+Tomato Rasam (Charu),Dal & Rasam,45
+Pepper Rasam (Miriyala Charu),Dal & Rasam,40
+Garlic Rasam,Dal & Rasam,45
+Lemon Rasam,Dal & Rasam,40
+Majjiga Pulusu (Mor Kuzhambu),Dal & Rasam,60
+Pachi Pulusu (Raw Tamarind Rasam),Dal & Rasam,50
+Kadhi Pakora,Dal & Rasam,140
+Vankaya Vepudu (Brinjal Fry),Veg Curries & Fries,160
+Vankaya Pulusu (Brinjal Gravy),Veg Curries & Fries,95
+Gutti Vankaya Kura (Stuffed Brinjal),Veg Curries & Fries,180
+Vankaya Iguru,Veg Curries & Fries,120
+Bendakaya Vepudu (Okra Fry),Veg Curries & Fries,160
+Bendakaya Pulusu,Veg Curries & Fries,85
+Bendakaya Iguru,Veg Curries & Fries,110
+Dondakaya Fry (Ivy Gourd),Veg Curries & Fries,170
+Dondakaya Kura (Gravy),Veg Curries & Fries,115
+Dondakaya Pachadi,Chutneys & Pickles,120
+Beerakaya Iguru (Ridge Gourd),Veg Curries & Fries,80
+Beerakaya Palu (with Milk),Veg Curries & Fries,95
+Sorakaya Pulusu (Bottle Gourd),Veg Curries & Fries,60
+Sorakaya Kura,Veg Curries & Fries,70
+Cabbage Vepudu (Cabbage Fry),Veg Curries & Fries,110
+Cabbage Pesara Pappu,Veg Curries & Fries,125
+Carrot Fry,Veg Curries & Fries,105
+Carrot Beans Poriyal,Veg Curries & Fries,90
+Beans Fry,Veg Curries & Fries,100
+Aloo Fry (Potato),Veg Curries & Fries,180
+Aloo Kurma (Potato Gravy),Veg Curries & Fries,140
+Aloo Tomato Curry,Veg Curries & Fries,110
+Aloo Gobi (Potato Cauliflower),Veg Curries & Fries,115
+Aloo Matar (Potato Peas),Veg Curries & Fries,120
+Aloo Jeera,Veg Curries & Fries,130
+Aratikaya Vepudu (Raw Banana Fry),Veg Curries & Fries,155
+Aratikaya Pulusu,Veg Curries & Fries,90
+Kanda Gadda Kura (Elephant Yam),Veg Curries & Fries,145
+Chamagadda Pulusu (Colocasia),Veg Curries & Fries,110
+Chikkudukaya Kura (Broad Beans),Veg Curries & Fries,95
+Munakkaya Kura (Drumstick),Veg Curries & Fries,85
+Munakkaya Tomato,Veg Curries & Fries,90
+Potlakaya Kura (Snake Gourd),Veg Curries & Fries,75
+Capsicum Masala,Veg Curries & Fries,120
+Kakarakaya Fry (Bitter Gourd),Veg Curries & Fries,165
+Kakarakaya Pulusu,Veg Curries & Fries,100
+Mushroom Masala,Veg Curries & Fries,130
+Mushroom Matar,Veg Curries & Fries,125
+Mixed Veg Kurma,Veg Curries & Fries,125
+Veg Kolhapuri,Veg Curries & Fries,150
+Veg Kadai,Veg Curries & Fries,140
+Veg Jalfrezi,Veg Curries & Fries,135
+Bhindi Masala,Veg Curries & Fries,110
+Baingan Bharta,Veg Curries & Fries,100
+Chana Masala (Chickpeas),Veg Curries & Fries,160
+Rajma Masala (Kidney Beans),Veg Curries & Fries,140
+Lobia Masala (Black-eyed Peas),Veg Curries & Fries,135
+Paneer Butter Masala,Veg Curries & Fries,350
+Palak Paneer,Veg Curries & Fries,230
+Kadai Paneer,Veg Curries & Fries,260
+Matar Paneer,Veg Curries & Fries,240
+Shahi Paneer,Veg Curries & Fries,310
+Paneer Tikka Masala,Veg Curries & Fries,290
+Malai Kofta,Veg Curries & Fries,340
+Navratan Korma,Veg Curries & Fries,250
+Dum Aloo,Veg Curries & Fries,180
+Gobi Manchurian (Dry),Snacks & Appetizers,220
+Paneer 65,Snacks & Appetizers,280
+Baby Corn Cigar,Snacks & Appetizers,210
+Chicken Curry (Home Style),Non-Veg (Chicken),130
+Andhra Chicken Curry (Kodi Kura),Non-Veg (Chicken),150
+Natukodi Pulusu (Country Chicken),Non-Veg (Chicken),165
+Chicken Fry (Kodi Vepudu),Non-Veg (Chicken),240
+Butter Chicken,Non-Veg (Chicken),230
+Chicken Tikka Masala,Non-Veg (Chicken),180
+Kadai Chicken,Non-Veg (Chicken),170
+Chicken Chettinad,Non-Veg (Chicken),190
+Chicken Korma,Non-Veg (Chicken),210
+Gongura Chicken,Non-Veg (Chicken),175
+Chicken 65,Non-Veg (Chicken),260
+Chilli Chicken (Dry),Non-Veg (Chicken),220
+Chicken Manchurian,Non-Veg (Chicken),200
+Pepper Chicken (Dry),Non-Veg (Chicken),210
+Garlic Chicken,Non-Veg (Chicken),195
+Chicken Sukka,Non-Veg (Chicken),230
+Mutton Curry (Home Style),Non-Veg (Mutton),150
+Andhra Mutton Curry,Non-Veg (Mutton),170
+Mutton Rogan Josh,Non-Veg (Mutton),190
+Mutton Keema Matar,Non-Veg (Mutton),200
+Mutton Chukka (Dry),Non-Veg (Mutton),250
+Mutton Korma,Non-Veg (Mutton),220
+Mutton Dalcha,Non-Veg (Mutton),180
+Gongura Mutton,Non-Veg (Mutton),195
+Mutton Liver Fry,Non-Veg (Mutton),230
+Paya Soup (Trotters),Non-Veg (Mutton),140
+Fish Curry (Chepala Pulusu),Non-Veg (Seafood),110
+Nellore Chepala Pulusu,Non-Veg (Seafood),125
+Fish Fry (Chepala Vepudu),Non-Veg (Seafood),220
+Apollo Fish,Non-Veg (Seafood),240
+Prawns Curry (Royyala Kura),Non-Veg (Seafood),120
+Prawns Fry (Royyala Vepudu),Non-Veg (Seafood),210
+Prawns Iguru,Non-Veg (Seafood),145
+Gongura Royyalu (Prawns),Non-Veg (Seafood),150
+Crab Curry (Peethala Kura),Non-Veg (Seafood),115
+Egg Curry (Guddu Pulusu),Non-Veg (Egg),140
+Egg Tomato Curry,Non-Veg (Egg),130
+Egg Masala (Guddu Iguru),Non-Veg (Egg),155
+Egg Bhurji (Anda Bhurji),Non-Veg (Egg),200
+Boiled Egg (1 Whole),Non-Veg (Egg),155
+Omelette (2 Eggs with oil),Non-Veg (Egg),220
+Egg Bonda (Fried),Non-Veg (Egg),260
+Roti / Phulka (Plain),Breads,297
+Chapati (with oil),Breads,320
+Naan (Plain),Breads,290
+Butter Naan,Breads,310
+Garlic Naan,Breads,300
+Tandoori Roti,Breads,270
+Rumali Roti,Breads,280
+Missi Roti,Breads,260
+Kulcha,Breads,275
+Bhatura,Breads,330
+Luchi,Breads,310
+Jowar Roti (Sajja Roti),Breads,240
+Bajra Roti,Breads,250
+Makki Ki Roti,Breads,260
+Ragi Mudde (Ragi Ball),Breads,115
+Samosa (1 Piece Avg),Snacks & Street Food,260
+Aloo Tikki,Snacks & Street Food,210
+Mirchi Bajji,Snacks & Street Food,240
+Onion Pakoda,Snacks & Street Food,310
+Punugulu,Snacks & Street Food,290
+Mysore Bonda,Snacks & Street Food,280
+Aloo Bonda,Snacks & Street Food,260
+Kachori,Snacks & Street Food,300
+Pani Puri (6 Pieces),Snacks & Street Food,180
+Bhel Puri,Snacks & Street Food,150
+Sev Puri,Snacks & Street Food,220
+Dahi Puri,Snacks & Street Food,240
+Vada Pav,Snacks & Street Food,290
+Pav Bhaji,Snacks & Street Food,180
+Kathi Roll (Veg),Snacks & Street Food,210
+Kathi Roll (Chicken),Snacks & Street Food,250
+Momos (Steamed Veg),Snacks & Street Food,150
+Momos (Steamed Chicken),Snacks & Street Food,180
+Palakova (Doodh Peda),Sweets & Desserts,350
+Gulab Jamun,Sweets & Desserts,320
+Rasgulla,Sweets & Desserts,280
+Rasmalai,Sweets & Desserts,250
+Jalebi,Sweets & Desserts,300
+Mysore Pak,Sweets & Desserts,450
+Boondi Laddu,Sweets & Desserts,380
+Besan Laddu,Sweets & Desserts,410
+Motichoor Laddu,Sweets & Desserts,390
+Kaju Katli,Sweets & Desserts,420
+Gajar Ka Halwa,Sweets & Desserts,280
+Sooji Halwa (Kesari Bath),Sweets & Desserts,310
+Moong Dal Halwa,Sweets & Desserts,350
+Semiya Payasam,Sweets & Desserts,180
+Rice Kheer (Paramannam),Sweets & Desserts,160
+Double Ka Meetha,Sweets & Desserts,310
+Qubani Ka Meetha,Sweets & Desserts,260
+Bobbatlu (Puran Poli),Sweets & Desserts,310
+Ariselu,Sweets & Desserts,400
+Pootharekulu,Sweets & Desserts,350
+Sunnundalu (Urad Dal Laddu),Sweets & Desserts,420
+Kulfi,Sweets & Desserts,210
+Gongura Pachadi,Chutneys & Pickles,210
+Avakaya (Mango Pickle),Chutneys & Pickles,250
+Magaya (Dried Mango),Chutneys & Pickles,230
+Nimmakaya Pachadi (Lemon),Chutneys & Pickles,180
+Tomato Pachadi (Fresh),Chutneys & Pickles,150
+Palli Chutney (Peanut),Chutneys & Pickles,240
+Kobbari Pachadi (Coconut),Chutneys & Pickles,260
+Pudina Chutney (Mint),Chutneys & Pickles,110
+Kothimeera Chutney (Coriander),Chutneys & Pickles,120
+Ullipaya Pachadi (Onion),Chutneys & Pickles,140
+Allam Pachadi (Ginger),Chutneys & Pickles,190
+Usirikaya Pachadi (Amla),Chutneys & Pickles,200
+Pandu Mirapakaya (Red Chilli),Chutneys & Pickles,220
+Karivepaku Podi (Curry Leaf),Powders (Podi),310
+Kandi Podi (Gunpowder),Powders (Podi),340
+Puttnala Podi (Roasted Gram),Powders (Podi),360
+Nuvvula Podi (Sesame),Powders (Podi),420
+Idli Milagai Podi,Powders (Podi),350
+Appadam (Papad - Roasted),Accompaniments,320
+Appadam (Papad - Fried),Accompaniments,480
+Ooramilagai (Sun-dried Chilli),Accompaniments,300
+Perugu (Plain Curd),Dairy,60
+Challa (Buttermilk),Dairy,40
+Ghee,Dairy,900
+Butter,Dairy,717
+Paneer (Raw),Dairy,296
+Tea (with Milk & Sugar),Beverages,60
+Filter Coffee (with Milk & Sugar),Beverages,70
+Sweet Lassi,Beverages,120
+Salted Lassi,Beverages,75
+Badam Milk,Beverages,140
+Rose Milk,Beverages,130
+Sugarcane Juice,Beverages,50
+Nimbu Pani (Sweet Fresh Lime),Beverages,45
+Jaljeera,Beverages,25
+Coconut Water (Tender),Beverages,19
+Thums Up / Cola,Beverages,40
+Fresh Orange Juice (No Sugar),Beverages,45
+Mosambi Juice (No Sugar),Beverages,40
+Watermelon Juice (No Sugar),Beverages,30"""
+
+with open("indian_food_db.csv", "w", encoding="utf-8") as f:
+    f.write(csv_data)
+
+print("indian_food_db.csv has been successfully created!")
