@@ -15,7 +15,17 @@ def load_data():
         # Clean the column names (removes hidden spaces that cause KeyErrors)
         df.columns = df.columns.str.strip()
         
-        # Failsafe: Standardize the calorie column name just in case
+        # Failsafe 1: Standardize the 'Dish' column name
+        if 'Dish' not in df.columns:
+            # Look for common alternative names in the CSV
+            dish_col = [col for col in df.columns if any(keyword in col.lower() for keyword in ['dish', 'food', 'name', 'item'])]
+            if dish_col:
+                df.rename(columns={dish_col[0]: 'Dish'}, inplace=True)
+            else:
+                # If it absolutely can't find a name column, fallback to the first column
+                df.rename(columns={df.columns[0]: 'Dish'}, inplace=True)
+
+        # Failsafe 2: Standardize the calorie column name just in case
         if 'Calories_per_100g' not in df.columns:
             cal_col = [col for col in df.columns if 'calorie' in col.lower() or 'kcal' in col.lower()]
             if cal_col:
@@ -31,9 +41,6 @@ def load_data():
             "Calories_per_100g": [130, 168, 180, 125, 350, 297, 175, 120]
         }
         return pd.DataFrame(fallback_data), False
-
-# Load the database
-df, using_csv = load_data()
 
 # --- 2. INITIALIZE MEMORY (SESSION STATE) ---
 if 'food_log' not in st.session_state:
