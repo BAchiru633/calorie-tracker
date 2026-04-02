@@ -1,102 +1,107 @@
 import streamlit as st
 import pandas as pd
 
-# --- PAGE SETUP ---
-st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout="wide")
-st.title("🍛 Complete Indian Calorie Tracker")
+st.set_page_config(page_title="Indian Calorie Tracker", layout="wide")
 
-# --- 1. FULL FOOD DATABASE (Per 100g) ---
-food_data = {
-    "Dish": [
-        # South Indian
-        "Plain Idli", "Plain Dosa", "Sambar", "Uggani", "Ragi Mudde", "Egg Fried Rice", "Prawns Curry", "Palakova",
-        # North Indian
-        "Roti/Phulka", "Paneer Butter Masala", "Dal Makhani", "Chicken Tikka Masala", "Aloo Gobi", "Chole", "Palak Paneer"
-    ],
-    "Calories (kcal per 100g)": [
-        130, 168, 75, 150, 115, 175, 120, 350,
-        297, 350, 130, 150, 90, 150, 230
-    ],
-    "Region": [
-        "South", "South", "South", "South", "South", "South", "South", "South",
-        "North", "North", "North", "North", "North", "North", "North"
-    ]
-}
-df_food = pd.DataFrame(food_data)
+# --- 1. LOAD EXTERNAL DATABASE ---
+@st.cache_data
+def load_data():
+    # This reads the massive list from the CSV file in the same folder
+    return pd.read_csv('indian_food_db.csv')
+
+# Safety check in case the CSV is missing
+try:
+    df = load_data()
+except FileNotFoundError:
+    st.error("Error: 'indian_food_db.csv' not found. Please ensure the file is saved in the exact same folder as app.py.")
+    st.stop()
 
 # --- 2. INITIALIZE MEMORY (SESSION STATE) ---
-if 'food_log' not in st.session_state:
-    st.session_state.food_log = []
+if 'log' not in st.session_state: 
+    st.session_state.log = []
+if 'total' not in st.session_state: 
+    st.session_state.total = 0.0
 
-if 'total_calories' not in st.session_state:
-    st.session_state.total_calories = 0.0
+# --- 3. UI LAYOUT: DASHBOARD ---
+st.title("🍛 Comprehensive Indian Calorie Dashboard")
 
-# --- 3. SIDEBAR: GOAL SETTING ---
-st.sidebar.header("🎯 Daily Goal")
-# Setting a default goal; you can adjust this daily as you progress in your fat loss phase.
-calorie_goal = st.sidebar.number_input("Set Calorie Goal", min_value=1000, max_value=5000, value=2500, step=100)
-
-# --- 4. PROGRESS METER ---
-st.header("📊 Today's Progress")
-
-# Calculate how full the bar should be (cap at 1.0 to prevent bar errors)
-progress_percentage = min(st.session_state.total_calories / calorie_goal, 1.0)
-calories_remaining = calorie_goal - st.session_state.total_calories
-
-if progress_percentage >= 1.0:
-    st.error(f"Goal Reached / Exceeded! Total: {st.session_state.total_calories:.0f} kcal")
-    st.progress(1.0)
-else:
-    st.metric(label="Calories Consumed", value=f"{st.session_state.total_calories:.0f} kcal", delta=f"{calories_remaining:.0f} kcal remaining")
-    st.progress(progress_percentage)
-
-st.divider()
-
-# --- 5. FOOD LOGGER ---
-st.header("🍽️ Log a Meal")
-col1, col2, col3 = st.columns([2, 1, 1])
+col1, col2 = st.columns([1, 2])
 
 with col1:
-    selected_dish = st.selectbox("Search for a dish:", df_food['Dish'].sort_values())
+    st.subheader("Your Profile")
+    age = st.number_input("Age", value=23, min_value=15, max_value=100)
+    weight = st.number_input("Weight (kg)", value=140.0, min_value=40.0)
+    height = st.number_input("Height (cm)", value=183.0, min_value=100.0)
+    goal = st.number_input("Daily Calorie Goal", value=2500, min_value=1000, step=100)
     
+    # Body Fat Logic (Deurenberg Formula)
+    bmi = weight / ((height/100)**2)
+    bfp = (1.20 * bmi) + (0.23 * age) - 16.2
+    st.metric("Estimated Body Fat %", f"{bfp:.1f}%")
+
 with col2:
-    grams_eaten = st.number_input("Amount (grams):", min_value=10, max_value=1000, value=100, step=10)
-
-with col3:
-    st.write("") # Spacing alignment
-    st.write("")
-    if st.button("➕ Log Food", use_container_width=True):
-        # Calculate precise calories
-        dish_stats = df_food[df_food['Dish'] == selected_dish].iloc[0]
-        calories_added = (dish_stats['Calories (kcal per 100g)'] / 100.0) * grams_eaten
+    st.subheader("Log a Meal")
+    
+    # Category Filter
+    categories = df['Category'].dropna().unique().tolist()
+    cat_filter = st.multiselect("Filter by Category (Optional)", categories)
+    
+    # Apply filter if user selected anything
+    filtered_df = df if not cat_filter else df[df['Category'].isin(cat_filter)]
+    
+    # Dish Selection
+    selected_dish = st.selectbox("Select Dish", filtered_df['Dish'].sort_values())
+    
+    # Grams Input
+    grams = st.number_input("Amount (Grams)", value=100, step=50, min_value=10)
+    
+    # Add to Log Action
+    if st.button("➕ Add to Plate", use_container_width=True):
+        # Fetch calories per 100g for the selected dish from the database
+        kcal_per_100g = df[df['Dish'] == selected_dish]['Calories_per_100g'].values[0]
         
-        # Save to memory
-        st.session_state.food_log.append({
-            "Dish": selected_dish,
-            "Amount (g)": grams_eaten,
-            "Calories (kcal)": calories_added
+        # Calculate precise calories
+        cals = (kcal_per_100g / 100.0) * grams
+        
+        # Save to session memory
+        st.session_state.log.append({
+            "Dish": selected_dish, 
+            "Amount (g)": grams, 
+            "Calories (kcal)": cals
         })
-        st.session_state.total_calories += calories_added
-        st.rerun() # Refresh the page to update the meter
+        st.session_state.total += cals
+        st.rerun()
 
-# --- 6. LOG HISTORY & RESET ---
+# --- 4. PROGRESS METER & LOG HISTORY ---
 st.divider()
+
+# Calculate remaining calories and meter percentage
+remaining = goal - st.session_state.total
+progress_val = min(st.session_state.total / goal, 1.0)
+
+st.subheader("📊 Today's Progress")
+if progress_val >= 1.0:
+    st.error(f"Goal Reached / Exceeded! Total: {st.session_state.total:.0f} kcal")
+else:
+    st.write(f"**Total Calories:** {st.session_state.total:.0f} / {goal} kcal ({remaining:.0f} remaining)")
+
+st.progress(progress_val)
+st.write("") # Spacing
+
 col_log, col_reset = st.columns([4, 1])
 
 with col_log:
-    st.subheader("📝 Today's Log")
-    if len(st.session_state.food_log) > 0:
-        log_df = pd.DataFrame(st.session_state.food_log)
-        # Clean up decimal points for display
+    if st.session_state.log:
+        # Format the dataframe for a clean display
+        log_df = pd.DataFrame(st.session_state.log)
         log_df['Calories (kcal)'] = log_df['Calories (kcal)'].apply(lambda x: round(x))
         st.dataframe(log_df, use_container_width=True, hide_index=True)
     else:
         st.info("No food logged yet today. Time to eat!")
 
 with col_reset:
-    st.write("") # Spacing alignment
-    st.write("")
     if st.button("🔄 Reset Day", type="primary", use_container_width=True):
-        st.session_state.food_log = []
-        st.session_state.total_calories = 0.0
+        # Clear the memory and reset the meter
+        st.session_state.log = []
+        st.session_state.total = 0.0
         st.rerun()
