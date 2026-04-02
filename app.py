@@ -1,9 +1,10 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+import os
 
 # --- PAGE SETUP ---
-st.set_page_config(page_title="Calorie Tracker", page_icon="🍛", layout="centered")
+st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout="centered")
 
 # --- 1. FULL FOOD DATABASE (Per 100g) ---
 @st.cache_data
@@ -39,12 +40,32 @@ def load_data():
 
 df, using_csv = load_data()
 
-# --- 2. INITIALIZE MEMORY ---
+# --- 2. PERMANENT MEMORY (SAVE / LOAD) ---
+LOG_FILE = "my_daily_log.csv"
+
+def load_daily_log():
+    """Loads the saved food log from the computer, if it exists."""
+    if os.path.exists(LOG_FILE):
+        return pd.read_csv(LOG_FILE).to_dict('records')
+    return []
+
+def save_daily_log(log_list):
+    """Saves the current food log to the computer so it survives refreshes."""
+    if len(log_list) > 0:
+        pd.DataFrame(log_list).to_csv(LOG_FILE, index=False)
+    else:
+        # If the log is empty (e.g., we hit reset), delete the file
+        if os.path.exists(LOG_FILE):
+            os.remove(LOG_FILE)
+
+# Initialize from the saved file instead of a blank list!
 if 'food_log' not in st.session_state:
-    st.session_state.food_log = []
+    st.session_state.food_log = load_daily_log()
 
 if 'total_calories' not in st.session_state:
-    st.session_state.total_calories = 0.0
+    # Recalculate total calories based on the saved log
+    st.session_state.total_calories = sum([item['Calories (kcal)'] for item in st.session_state.food_log])
+
 
 st.title("🍛 Complete Indian Calorie Tracker")
 
@@ -103,6 +124,9 @@ if st.button("➕ Log Food", type="primary", use_container_width=True):
     })
     st.session_state.total_calories += calories_added
     
+    # NEW: Save to file instantly!
+    save_daily_log(st.session_state.food_log)
+    
     # NATIVE STREAMLIT ANIMATION / NOTIFICATION
     st.toast(f"🔥 Added {grams_eaten}g of {selected_dish}! (+{int(calories_added)} kcal)", icon="🔥")
     st.rerun()
@@ -121,6 +145,8 @@ if len(st.session_state.food_log) > 0:
     if st.button("🔄 Reset Entire Day", use_container_width=True):
         st.session_state.food_log = []
         st.session_state.total_calories = 0.0
+        # NEW: Delete the file so it actually resets!
+        save_daily_log(st.session_state.food_log)
         st.rerun()
 else:
     st.info("No food logged yet today. Time to eat!")
