@@ -6,7 +6,6 @@ st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout
 st.title("🍛 Complete Indian Calorie Tracker")
 
 # --- 1. FULL FOOD DATABASE (Per 100g) ---
-# Note: If you ever change your CSV file, clear your Streamlit cache!
 @st.cache_data
 def load_data():
     try:
@@ -29,6 +28,13 @@ def load_data():
             cal_col = [col for col in df.columns if 'calorie' in col.lower() or 'kcal' in col.lower()]
             if cal_col:
                 df.rename(columns={cal_col[0]: 'Calories_per_100g'}, inplace=True)
+        
+        # --- THE FIX: Force the calories column to be purely numeric ---
+        # 1. Convert to string temporarily to use regex.
+        # 2. Strip out any letters, spaces, or commas (e.g. "150 kcal" becomes "150").
+        # 3. Convert back to a pure float number. If it fails, make it a 0.
+        df['Calories_per_100g'] = df['Calories_per_100g'].astype(str).str.replace(r'[^\d.]', '', regex=True)
+        df['Calories_per_100g'] = pd.to_numeric(df['Calories_per_100g'], errors='coerce').fillna(0)
                 
         return df, True
         
@@ -41,8 +47,7 @@ def load_data():
         }
         return pd.DataFrame(fallback_data), False
 
-# THIS IS THE LINE YOUR SCRIPT WAS MISSING!
-# It runs the function above and saves the result as 'df'
+# Load the database
 df, using_csv = load_data()
 
 # --- 2. INITIALIZE MEMORY (SESSION STATE) ---
@@ -77,7 +82,7 @@ st.header("🍽️ Log a Meal")
 col1, col2, col3 = st.columns([2, 1, 1])
 
 with col1:
-    # Now 'df' is properly defined and has a guaranteed 'Dish' column
+    # Safely select a dish
     selected_dish = st.selectbox("Search for a dish:", df['Dish'].sort_values())
     
 with col2:
@@ -87,8 +92,10 @@ with col3:
     st.write("") # Spacing alignment
     st.write("")
     if st.button("➕ Log Food", use_container_width=True):
-        # Calculate precise calories using the failsafe column names
+        # Calculate precise calories
         dish_stats = df[df['Dish'] == selected_dish].iloc[0]
+        
+        # Because we cleaned the column above, this math will now work perfectly!
         calories_added = (dish_stats['Calories_per_100g'] / 100.0) * grams_eaten
         
         # Save to memory
