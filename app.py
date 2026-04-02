@@ -381,3 +381,30 @@ else:
         if streak_updated:
             st.session_state.user_profile['last_log_date'] = today_str
             st.session_state.user_profile['current_streak'] = streak
+# --- SAVE STREAK TO DATABASE ---
+            users_db = load_users()
+            if st.session_state.username in users_db:
+                users_db[st.session_state.username]['last_log_date'] = today_str
+                users_db[st.session_state.username]['current_streak'] = streak
+                save_users(users_db)
+        
+        st.toast(f"🔥 Added {grams_eaten}g of {selected_dish}! (+{int(calories_added)} kcal)", icon="🔥")
+        st.rerun()
+
+    # --- 6. LOG HISTORY & RESET ---
+    st.divider()
+    st.subheader("📝 Today's Log")
+
+    if len(st.session_state.food_log) > 0:
+        log_df = pd.DataFrame(st.session_state.food_log)
+        # Round the calories for a cleaner look
+        log_df['Calories (kcal)'] = log_df['Calories (kcal)'].apply(lambda x: round(x))
+        st.dataframe(log_df, use_container_width=True, hide_index=True)
+        
+        if st.button("🔄 Reset Entire Day", use_container_width=True):
+            st.session_state.food_log = []
+            st.session_state.total_calories = 0.0
+            save_daily_log(st.session_state.username, st.session_state.food_log)
+            st.rerun()
+    else:
+        st.info("No food logged yet today. Time to eat!")
