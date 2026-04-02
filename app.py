@@ -6,7 +6,8 @@ st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout
 st.title("🍛 Complete Indian Calorie Tracker")
 
 # --- 1. FULL FOOD DATABASE (Per 100g) ---
-#@st.cache_data
+# Note: If you ever change your CSV file, clear your Streamlit cache!
+@st.cache_data
 def load_data():
     try:
         # Load the CSV
@@ -17,12 +18,10 @@ def load_data():
         
         # Failsafe 1: Standardize the 'Dish' column name
         if 'Dish' not in df.columns:
-            # Look for common alternative names in the CSV
             dish_col = [col for col in df.columns if any(keyword in col.lower() for keyword in ['dish', 'food', 'name', 'item'])]
             if dish_col:
                 df.rename(columns={dish_col[0]: 'Dish'}, inplace=True)
             else:
-                # If it absolutely can't find a name column, fallback to the first column
                 df.rename(columns={df.columns[0]: 'Dish'}, inplace=True)
 
         # Failsafe 2: Standardize the calorie column name just in case
@@ -34,13 +33,17 @@ def load_data():
         return df, True
         
     except Exception as e:
-        # FALLBACK: If the CSV is missing or broken, the app will use this instead of crashing
+        # FALLBACK: If the CSV is missing or broken, use this instead of crashing
         fallback_data = {
             "Dish": ["Plain Idli", "Plain Dosa", "Chicken Biryani", "Dal Tadka", "Paneer Butter Masala", "Roti/Phulka", "Egg Fried Rice", "Prawns Curry"],
             "Category": ["Breakfast", "Breakfast", "Rice", "Dal & Rasam", "Veg Curries", "Breads", "Rice", "Non-Veg"],
             "Calories_per_100g": [130, 168, 180, 125, 350, 297, 175, 120]
         }
         return pd.DataFrame(fallback_data), False
+
+# THIS IS THE LINE YOUR SCRIPT WAS MISSING!
+# It runs the function above and saves the result as 'df'
+df, using_csv = load_data()
 
 # --- 2. INITIALIZE MEMORY (SESSION STATE) ---
 if 'food_log' not in st.session_state:
@@ -51,7 +54,6 @@ if 'total_calories' not in st.session_state:
 
 # --- 3. SIDEBAR: GOAL SETTING ---
 st.sidebar.header("🎯 Daily Goal")
-# Setting a default goal; you can adjust this daily as you progress in your fat loss phase.
 calorie_goal = st.sidebar.number_input("Set Calorie Goal", min_value=1000, max_value=5000, value=2500, step=100)
 
 # --- 4. PROGRESS METER ---
@@ -75,7 +77,7 @@ st.header("🍽️ Log a Meal")
 col1, col2, col3 = st.columns([2, 1, 1])
 
 with col1:
-    # FIXED: Changed df_food to df
+    # Now 'df' is properly defined and has a guaranteed 'Dish' column
     selected_dish = st.selectbox("Search for a dish:", df['Dish'].sort_values())
     
 with col2:
@@ -85,10 +87,8 @@ with col3:
     st.write("") # Spacing alignment
     st.write("")
     if st.button("➕ Log Food", use_container_width=True):
-        # FIXED: Changed df_food to df
+        # Calculate precise calories using the failsafe column names
         dish_stats = df[df['Dish'] == selected_dish].iloc[0]
-        
-        # FIXED: Matched the column name to what load_data() guarantees
         calories_added = (dish_stats['Calories_per_100g'] / 100.0) * grams_eaten
         
         # Save to memory
