@@ -163,3 +163,167 @@ else:
     colA, colB = st.columns([4, 1])
     with colA:
         st.title(f"Welcome, {st.session_state.username}! 👋")
+    with colB:
+        st.write("")
+        if st.button("Logout", use_container_width=True):
+            st.session_state.clear() 
+            st.rerun()
+
+    # ==========================================
+    #               SIDEBAR & TOOLS
+    # ==========================================
+    with st.sidebar:
+        st.header("👤 Profile")
+        st.write(f"**Weight:** {st.session_state.user_profile.get('weight', 'N/A')} kg")
+        st.write(f"**Goal:** {st.session_state.user_profile.get('goal_weight', 'N/A')} kg")
+        
+        st.divider()
+        st.header("🎯 Daily Goal")
+        st.number_input(
+            "Set Calorie Goal", 
+            min_value=1000, max_value=5000, 
+            value=int(st.session_state.user_profile.get('calorie_goal', 2000)), 
+            step=100,
+            key="goal_input",
+            on_change=save_calorie_goal
+        )
+
+        st.divider()
+        st.header("🧮 Health Tools")
+        
+        # Grab user stats for calculators (with safe fallbacks)
+        u_weight = st.session_state.user_profile.get('weight', 70)
+        u_height = st.session_state.user_profile.get('height', 170)
+        u_age = st.session_state.user_profile.get('age', 25)
+        u_gender = st.session_state.user_profile.get('gender', 'Male') 
+        
+        # TOOL 1: BMI CALCULATOR
+        with st.expander("⚖️ BMI Calculator"):
+            bmi = u_weight / ((u_height / 100) ** 2)
+            st.metric("Your BMI", f"{bmi:.1f}")
+            
+            if bmi < 18.5: st.warning("Classification: Underweight")
+            elif 18.5 <= bmi < 24.9: st.success("Classification: Normal Weight")
+            elif 25 <= bmi < 29.9: st.warning("Classification: Overweight")
+            else: st.error("Classification: Obese")
+
+        # TOOL 2: CALORIE NEEDS (BMR/TDEE)
+        with st.expander("🔥 Daily Calorie Needs"):
+            activity_level = st.selectbox("Activity Level", ["Sedentary", "Lightly Active", "Moderately Active", "Very Active"])
+            
+            # Mifflin-St Jeor Equation
+            if u_gender == "Male":
+                bmr = (10 * u_weight) + (6.25 * u_height) - (5 * u_age) + 5
+            else:
+                bmr = (10 * u_weight) + (6.25 * u_height) - (5 * u_age) - 161
+                
+            multipliers = {"Sedentary": 1.2, "Lightly Active": 1.375, "Moderately Active": 1.55, "Very Active": 1.725}
+            tdee = bmr * multipliers[activity_level]
+            
+            st.write(f"**BMR (Resting):** {int(bmr)} kcal")
+            st.metric("TDEE (Maintenance):", f"{int(tdee)} kcal")
+            
+            st.info("To lose fat, eat ~500 kcal below maintenance. To gain muscle, eat ~300 kcal above.")
+            
+            # One-click update for main goal
+            if st.button("Set as my Daily Goal"):
+                st.session_state.user_profile['calorie_goal'] = int(tdee - 500)
+                st.session_state.goal_input = int(tdee - 500)
+                save_calorie_goal()
+                st.rerun()
+
+        # TOOL 3: FAT PERCENTAGE ESTIMATOR
+        with st.expander("📉 Body Fat % Estimator"):
+            gender_num = 1 if u_gender == "Male" else 0
+            body_fat_pct = (1.20 * bmi) + (0.23 * u_age) - (10.8 * gender_num) - 5.4
+            
+            st.metric("Estimated Body Fat", f"{body_fat_pct:.1f}%")
+            
+            if u_gender == "Male":
+                if body_fat_pct < 6: st.write("Category: Essential Fat")
+                elif body_fat_pct < 14: st.write("Category: Athletes")
+                elif body_fat_pct < 18: st.write("Category: Fitness")
+                elif body_fat_pct < 25: st.write("Category: Average")
+                else: st.write("Category: Obese")
+            else:
+                if body_fat_pct < 14: st.write("Category: Essential Fat")
+                elif body_fat_pct < 21: st.write("Category: Athletes")
+                elif body_fat_pct < 25: st.write("Category: Fitness")
+                elif body_fat_pct < 32: st.write("Category: Average")
+                else: st.write("Category: Obese")
+
+    # ==========================================
+    #               MAIN DASHBOARD
+    # ==========================================
+    # Bulletproof fallback in case the goal_input hasn't initialized yet
+    current_goal = st.session_state.get('goal_input', st.session_state.user_profile.get('calorie_goal', 2000))
+
+    # --- 4. CIRCULAR PROGRESS METER (PLOTLY) ---
+    st.subheader("📊 Today's Progress")
+
+    # Dynamic coloring based on limit
+    if st.session_state.total_calories > current_goal:
+        bar_color = "#FF4B4B" # Red
+    elif st.session_state.total_calories > (current_goal * 0.8):
+        bar_color = "#FFAA00" # Orange
+    else:
+        bar_color = "#00CC96" # Green
+
+    fig = go.Figure(go.Indicator(
+        mode = "gauge+number",
+        value = st.session_state.total_calories,
+        number = {'suffix': " kcal", 'font': {'size': 45}},
+        title = {'text': f"Goal: {current_goal} kcal", 'font': {'size': 20}},
+        gauge = {
+            'axis': {'range': [0, current_goal], 'tickwidth': 1},
+            'bar': {'color': bar_color},
+            'bgcolor': "rgba(0,0,0,0.1)",
+            'borderwidth': 0,
+        }
+    ))
+
+    fig.update_layout(height=300, margin=dict(l=20, r=20, t=30, b=20), paper_bgcolor="rgba(0,0,0,0)")
+    st.plotly_chart(fig, use_container_width=True)
+
+    st.divider()
+
+    # --- 5. FOOD LOGGER ---
+    st.subheader("🍽️ Log a Meal")
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        selected_dish = st.selectbox("Search for a dish:", df['Dish'].sort_values())
+    with col2:
+        grams_eaten = st.number_input("Amount (grams):", min_value=10, max_value=2000, value=100, step=10)
+
+    if st.button("➕ Log Food", type="primary", use_container_width=True):
+        dish_stats = df[df['Dish'] == selected_dish].iloc[0]
+        calories_added = (dish_stats['Calories_per_100g'] / 100.0) * grams_eaten
+        
+        st.session_state.food_log.append({
+            "Dish": selected_dish,
+            "Amount (g)": grams_eaten,
+            "Calories (kcal)": calories_added
+        })
+        st.session_state.total_calories += calories_added
+        
+        save_daily_log(st.session_state.food_log)
+        st.toast(f"🔥 Added {grams_eaten}g of {selected_dish}! (+{int(calories_added)} kcal)", icon="🔥")
+        st.rerun()
+
+    # --- 6. LOG HISTORY & RESET ---
+    st.divider()
+    st.subheader("📝 Today's Log")
+
+    if len(st.session_state.food_log) > 0:
+        log_df = pd.DataFrame(st.session_state.food_log)
+        log_df['Calories (kcal)'] = log_df['Calories (kcal)'].apply(lambda x: round(x))
+        st.dataframe(log_df, use_container_width=True, hide_index=True)
+        
+        if st.button("🔄 Reset Entire Day", use_container_width=True):
+            st.session_state.food_log = []
+            st.session_state.total_calories = 0.0
+            save_daily_log(st.session_state.food_log)
+            st.rerun()
+    else:
+        st.info("No food logged yet today. Time to eat!")
