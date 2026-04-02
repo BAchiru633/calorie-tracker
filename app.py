@@ -3,7 +3,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import hashlib
 import datetime
-import time # <--- NEW: Added time library
+import time
+import jwt # <--- NEW: Secure token library
 import extra_streamlit_components as stx
 from streamlit_gsheets import GSheetsConnection
 
@@ -16,9 +17,10 @@ st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout
 # PASTE YOUR GOOGLE SHEET URL HERE:
 SPREADSHEET_URL = "https://docs.google.com/spreadsheets/d/1gqjP15Pz1GUy_7005_qswSfpjFh41LZFlsDNXu9AYuQ/edit?usp=sharing"
 
-conn = st.connection("gsheets", type=GSheetsConnection)
+# Grab the secret key for our wax seals (falls back to a default if you forget to add it to Secrets)
+JWT_SECRET = st.secrets.get("JWT_SECRET", "fallback-dev-secret-key-do-not-use-in-prod")
 
-# Initialize Cookie Manager for Persistent Logins
+conn = st.connection("gsheets", type=GSheetsConnection)
 cookie_manager = stx.CookieManager()
 
 def hash_password(password):
@@ -73,14 +75,25 @@ if 'logged_in' not in st.session_state:
 if 'username' not in st.session_state:
     st.session_state.username = ""
 
-# --- AUTO-LOGIN VIA COOKIE (30 DAY PERSISTENCE) ---
+# --- SECURE AUTO-LOGIN VIA JWT COOKIE ---
 auth_cookie = cookie_manager.get(cookie="auth_token")
 if auth_cookie and not st.session_state.logged_in:
-    users = load_users()
-    if auth_cookie in users:
-        st.session_state.logged_in = True
-        st.session_state.username = auth_cookie
-        st.session_state.user_profile = users[auth_cookie]
+    try:
+        # Check if the wax seal is unbroken and matches our server's secret password
+        decoded_token = jwt.decode(auth_cookie, JWT_SECRET, algorithms=["HS256"])
+        token_username = decoded_token.get("username")
+        
+        users = load_users()
+        if token_username in users:
+            st.session_state.logged_in = True
+            st.session_state.username = token_username
+            st.session_state.user_profile = users[token_username]
+    except jwt.ExpiredSignatureError:
+        # Token is too old, force a new login
+        cookie_manager.delete("auth_token")
+    except jwt.InvalidTokenError:
+        # Someone tampered with the cookie! Reject it.
+        cookie_manager.delete("auth_token")
 
 # ==========================================
 #         LOGIN & SIGN UP SCREEN
@@ -101,14 +114,22 @@ if not st.session_state.logged_in:
             if login_user in users:
                 if str(users[login_user]['password']) == hash_password(login_pass):
                     
-                    # DROP A COOKIE THAT LASTS FOR 30 DAYS
-                    cookie_manager.set("auth_token", login_user, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
+                    # --- NEW: Create a mathematically signed token ---
+                    expiration_date = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
+                    token_payload = {
+                        "username": login_user,
+                        "exp": expiration_date
+                    }
+                    # Seal it with our secret password
+                    secure_token = jwt.encode(token_payload, JWT_SECRET, algorithm="HS256")
+                    
+                    # Give the sealed token to the browser
+                    cookie_manager.set("auth_token", secure_token, expires_at=datetime.datetime.now() + datetime.timedelta(days=30))
                     
                     st.session_state.logged_in = True
                     st.session_state.username = login_user
                     st.session_state.user_profile = users[login_user]
                     
-                    # THE FIX: Give the browser 2 seconds to save the cookie before refreshing
                     st.success("Authenticating and saving secure login... Please wait.")
                     time.sleep(2) 
                     st.rerun()
@@ -196,11 +217,8 @@ else:
     with colB:
         st.write("")
         if st.button("Logout", use_container_width=True):
-            # SHRED THE COOKIE ON LOGOUT
             cookie_manager.delete("auth_token")
             st.session_state.clear() 
-            
-            # THE FIX: Give the browser 2 seconds to delete the cookie before refreshing
             st.success("Logging out securely... Please wait.")
             time.sleep(2)
             st.rerun()
