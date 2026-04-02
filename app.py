@@ -6,7 +6,7 @@ st.set_page_config(page_title="Indian Calorie Tracker", page_icon="🍛", layout
 st.title("🍛 Complete Indian Calorie Tracker")
 
 # --- 1. FULL FOOD DATABASE (Per 100g) ---
-@st.cache_data
+#@st.cache_data
 def load_data():
     try:
         # Load the CSV
