@@ -162,4 +162,4 @@ else:
     # --- TOP BAR: WELCOME & LOGOUT ---
     colA, colB = st.columns([4, 1])
     with colA:
-        st.title(f"Welcome, {st.session
+        st.title(f"Welcome, {st.session_state.username}! 👋")
